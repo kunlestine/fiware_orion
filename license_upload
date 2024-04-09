@@ -1,0 +1,139 @@
+import csv
+import requests
+import uuid  # Used to generate unique identifiers
+import json
+import unicodedata
+
+# create a session object
+session = requests.Session()
+
+# Configuration
+context_broker_url = 'http://broker.digitalubiquitycapital.com:1026/v2/entities'
+csv_file_path = "C:\\Users\\AdekunleAdeoya\\Desktop\\work folder\\Site_Data_Extract (1)\\Site_Data_Extract_cleaned.csv"  # Replace with the path to your CSV file
+
+# Initialize a list to store the NGSI entities
+entities = []
+
+# Define a function to check if a character is supported
+encodings = ['utf-8', 'ISO-8859-1']
+for encoding in encodings:
+    try:
+        # Read the CSV file and convert it to NGSI entities
+        with open(csv_file_path, 'r', encoding=encoding) as csv_file: #'ISO-8859-1'
+            csv_reader = csv.DictReader(csv_file)
+            for row in csv_reader:
+        
+                # # Generate a unique identifier using uuid4 (random UUID)
+                # unique_id = str(uuid.uuid4())
+                prefix = "License"
+                random_number = uuid.uuid4().hex[:6]  # Get the first 6 characters of the random UUID
+
+                unique_id = f"{prefix}-{random_number}"
+                
+                # normalize unicode characters
+                for key, value in row.items():
+                    if isinstance(value, str):
+                        row[key] = unicodedata.normalize('NFKD', value).encode('ascii','ignore').decode('utf-8','ignore')
+                
+
+                # Create an NGSI entity
+                entity = {  
+                    'id': unique_id,  # Each entity has a unique ID
+                    'type': 'Licenses',  # The type of the entity
+                    'NEW_ACCOUNT': {
+                        "value": int(row['NEW_ACCOUNT'])},
+                    'NEW_LICNO':{
+                        "value": str(row['NEW_LICNO'])},
+                    'OLD_ACCOUNT':{
+                        "value": float(row['OLD_ACCOUNT'])},
+                    'OLD_LICNO': {
+                        "value": str(row['OLD_LICNO'])},
+                    'LICENSEE': {
+                        "value": str(row['LICENSEE'])},
+                    'SERVICE': {
+                        "value": str(row['SERVICE']) if row['SERVICE'] else None},
+                    'TRANSMIT_FREQ': {
+                        "value": float(row['TRANSMIT_FREQ']) if row['TRANSMIT_FREQ'] else None},
+                    'RECEIVE_FREQ': {
+                        "value": float(row['RECEIVE_FREQ']) if row['RECEIVE_FREQ'] else None},
+                    'TRANSMIT_LOWER': {
+                        "value": float(row['TRANSMIT_LOWER']) if row['TRANSMIT_LOWER'] else None},
+                    'TRANSMIT_UPPER': {
+                        "value": float(row['TRANSMIT_UPPER']) if row['TRANSMIT_UPPER'] else None},
+                    'ADDRESS': {
+                        "value": str(row['LOCATION']) if row['LOCATION'] else None},
+                    'PROV': {
+                        "value": str(row['PROV']) if row['PROV'] else None},
+                    'SITE_ELEV': {
+                        "value": float(row['SITE_ELEV']) if row['SITE_ELEV'] else None},
+                    'STUCT_HT': {
+                        "value": float(row['STUCT_HT']) if row['STUCT_HT'] else None},
+                    'TX_MFR': {
+                        "value": str(row['TX_MFR']) if row['TX_MFR'] else None},
+                    'TX_MODEL': {
+                        "value": str(row['TX_MODEL']) if row['TX_MODEL'] else None},
+                    'TX_PWR': {
+                        "value": float(row['TX_PWR']) if row['TX_PWR'] else None},
+                    'TX_PWR_TYPE': {
+                        "value": str(row['TX_PWR_TYPE']) if row['TX_PWR_TYPE'] else None},
+                    'BW_EMISSION': {
+                        "value": str(row['BW_EMISSION']) if row['BW_EMISSION'] else None},
+                    'TX_ANT_MFR': {
+                        "value": str(row['TX_ANT_MFR']) if row['TX_ANT_MFR'] else None},
+                    'TX_ANT_MODEL': {
+                        "value": str(row['TX_ANT_MODEL']) if row['TX_ANT_MODEL'] else None},
+                    'TX_ANT_HT': {
+                        "value": float(row['TX_ANT_HT']) if row['TX_ANT_HT'] else None},
+                    'TX_ANT_AZIM': {
+                        "value": float(row['TX_ANT_AZIM']) if row['TX_ANT_AZIM'] else None},
+                    'TX_ANT_ELEV_ANGLE': {
+                        "value": float(row['TX_ANT_ELEV_ANGLE']) if row['TX_ANT_ELEV_ANGLE'] else None},
+                    'TX_ANT_GAIN': {
+                        "value": float(row['TX_ANT_GAIN']) if row['TX_ANT_GAIN'] else None},
+                    'TX_ANT_DIRECTIONAL': {
+                        "value": str(row['TX_ANT_DIRECTIONAL']) if row['TX_ANT_DIRECTIONAL'] else None},
+                    'TX_LINE_LOSS': {
+                        "value": float(row['TX_LINE_LOSS']) if row['TX_LINE_LOSS'] else None},
+                    'ZONE_ENHANCER': {
+                        "value": str(row['ZONE_ENHANCER']) if row['ZONE_ENHANCER'] else None},
+                    'LAST_MOD_DATE': {
+                        "value": str(row['LAST_MOD_DATE']) if row['LAST_MOD_DATE'] else None},
+                    'LAST_UPLOAD_DATE': {
+                        "value": str(row['LAST_UPLOAD_DATE'] if row['LAST_UPLOAD_DATE'] else None)},
+                    # Include the 'location' attribute as a JSON object
+                    'location': {
+                        "type": "geo:json",
+                        "value":{
+                            "type": "Point",
+                            "coordinates":[float(row['LATITUDE']),float(row['LONGITUDE'])] 
+                        },
+                        "metadata": {
+                            "crs": {
+                                "value": "WGS84"  # Coordinate Reference System
+                            }
+                    }        
+                }
+            }
+                # Append the entity to the list of entities
+                entities.append(entity)
+    except UnicodeDecodeError:
+        print(f"Failed to read CSV file with encoding: {encoding}")
+        continue
+    
+
+# Post the single entity to the Context Broker for testing
+for entity in entities:
+    check_url = f"{context_broker_url}/{entity['id']}"
+    check_response = session.get(check_url, timeout=2)
+    
+    if check_response.status_code == 404:
+        headers = {'Content-Type': 'application/json'}
+        response = session.post(context_broker_url, data=json.dumps(entity), headers=headers)
+
+        if response.status_code == 201:
+            print(f"Entity '{entity['id']}' created successfully.")
+        else:
+            print(f"Failed to create entity '{entity['id']}': {response.status_code} - {response.text}")
+    else:
+        print(f"Entity '{entity['id']}' already exists. Skipping...")
+             
